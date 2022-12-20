@@ -6,7 +6,6 @@ void Alloc1()
 {
 	for (size_t i = 0; i < 2; ++i)
 	{
-		int a = 0;
 		void* ptr = ConcurrentAlloc(6);
 	}
 }

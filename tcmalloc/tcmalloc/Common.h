@@ -3,6 +3,7 @@
 #include<iostream>
 #include<cassert>
 #include<thread>
+#include<mutex>
 
 using std::endl;
 using std::cout;
@@ -10,6 +11,14 @@ using std::cout;
 static const size_t MAX_BYTES = 256 * 1024; // 定义thread cache最大的申请字节数
 static const size_t NFREE_LISTS = 208; // 空闲链表的数量
 
+// 使用条件编译来确定页号的类型
+#ifdef _WIN64
+typedef size_t PAGE_ID;
+#elif _WIN32
+typedef unsigned long long PAGE_ID;
+#else
+	// Linux平台下
+#endif
 
 
 // 返回当前节点的下一个节点，引用返回
@@ -22,6 +31,7 @@ class FreeList
 {
 private:
 	void* _freeList = nullptr;
+	size_t _maxSize = 1;
 public:
 	// 头插
 	void Push(void* obj)
@@ -29,6 +39,13 @@ public:
 		assert(obj); // 插入的对象不能为空
 		NextObj(obj) = _freeList;
 		_freeList = obj;
+	}
+
+	// 插入一个范围，直接尾插
+	void PushRange(void* start, void* end)
+	{
+		NextObj(end) = _freeList;
+		_freeList = start;
 	}
 	// 头删
 	void* Pop()
@@ -42,6 +59,12 @@ public:
 	bool Empty()
 	{
 		return _freeList == nullptr;
+	}
+
+	// 传引用返回maxSize
+	size_t& MaxSize()
+	{
+		return _maxSize;
 	}
 };
 
@@ -143,5 +166,72 @@ public:
 			assert(false);
 		}
 		return -1;
+	}
+
+	// 一次从中心缓存获取多少个
+	static size_t NumMoveSize(size_t size)
+	{
+		assert(size > 0);
+		// [2, 512]，一次批量移动多少个对象的(慢启动)上限值
+		// 小对象一次批量上限高
+		// 小对象一次批量上限低
+		int num = MAX_BYTES / size;
+		if (num < 2)
+			num = 2;
+		if (num > 512)
+			num = 512;
+		return num;
+	}
+};
+
+// Spang管理一个跨度的大块内存
+struct Span
+{
+	PAGE_ID _pageId;	// 大块内存的起始页的页号
+	size_t _n;			// 页的数量
+	Span* _next;		// 双向链表的结构
+	Span* _prev;
+	size_t _useCount;	// 切好的小块内存的个数
+	void* _freeList;	// 切好的小块内存的空闲链表
+};
+
+// 带头双向循环链表
+class SpanList
+{
+private:
+	Span* _head;		// 头节点
+public:
+	std::mutex _mtx;	// 互斥锁，桶锁
+public:
+	// 构造函数
+	SpanList()
+	{
+		_head = new Span;
+		_head->_next = nullptr;
+		_head->_prev = nullptr;
+	}
+
+	// 在pos前插入
+	void Insert(Span* pos, Span* newSpan)
+	{
+		assert(pos);
+		assert(newSpan);
+		Span* prev = pos->_prev;
+		newSpan->_next = pos;
+		newSpan->_prev = prev;
+		prev->_next = newSpan;
+		pos->_prev = newSpan;
+	}
+
+	// 删除pos
+	void Erase(Span* pos)
+	{
+		assert(pos);
+		assert(pos != _head);
+		Span* next = pos->_next;
+		Span* prev = pos->_prev;
+		prev->_next = next;
+		next->_prev = prev;
+		// 不需要delete掉Span，只需要解除即可
 	}
 };
