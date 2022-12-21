@@ -17,6 +17,6 @@ public:
 	{
 		return &_sInst;
 	}
-	Span* GetOneSpan(SpanList& list, size_t byte_size);
+	Span* GetOneSpan(SpanList& list, size_t size);
 	size_t FetchRangeObj(void*& start, void*& end, size_t batchNum, size_t size);
 };

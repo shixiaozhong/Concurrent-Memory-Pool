@@ -10,6 +10,15 @@ using std::cout;
 
 static const size_t MAX_BYTES = 256 * 1024; // 定义thread cache最大的申请字节数
 static const size_t NFREE_LISTS = 208; // 空闲链表的数量
+static const size_t NPAGES = 129; // 最大的页数
+static const size_t PAGE_SHIFT = 13;
+
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+// ...
+#endif
 
 // 使用条件编译来确定页号的类型
 #ifdef _WIN64
@@ -19,6 +28,20 @@ typedef unsigned long long PAGE_ID;
 #else
 	// Linux平台下
 #endif
+
+// 直接去堆上按页申请空间
+inline static void* SystemAlloc(size_t kpage)
+{
+#ifdef _WIN32
+	void* ptr = VirtualAlloc(0, kpage << 13, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+	// Linux下可以使用brk, mmp
+#endif
+	if (ptr == nullptr)
+		throw std::bad_alloc();
+	return ptr;
+}
+
 
 
 // 返回当前节点的下一个节点，引用返回
@@ -182,6 +205,20 @@ public:
 			num = 512;
 		return num;
 	}
+
+	// 计算一次向系统获取几个页
+	// 单个对象 8byte
+	// ...
+	// 单个对象 256KB
+	static size_t NumMovePage(size_t size)
+	{
+		size_t num = NumMoveSize(size);
+		size_t npage = num * size;
+		npage >>= PAGE_SHIFT;
+		if (npage == 0)
+			npage = 1;
+		return npage;
+	}
 };
 
 // Spang管理一个跨度的大块内存
@@ -207,9 +244,32 @@ public:
 	SpanList()
 	{
 		_head = new Span;
-		_head->_next = nullptr;
-		_head->_prev = nullptr;
+		_head->_next = _head;
+		_head->_prev = _head;
 	}
+	Span* Begin()
+	{
+		return _head->_next;
+	}
+	Span* End()
+	{
+		return _head;
+	}
+
+	// 头插
+	void PushFront(Span* pos)
+	{
+		Insert(Begin(), pos);
+	}
+
+	// 头删
+	Span* PopFront()
+	{
+		Span* front = _head->_next;
+		Erase(front);
+		return front;
+	}
+
 
 	// 在pos前插入
 	void Insert(Span* pos, Span* newSpan)
@@ -233,5 +293,11 @@ public:
 		prev->_next = next;
 		next->_prev = prev;
 		// 不需要delete掉Span，只需要解除即可
+	}
+
+	// 判空
+	bool Empty()
+	{
+		return _head->_next == _head;
 	}
 };

@@ -9,7 +9,7 @@ void* ThreadCache::FecthFromCentralCache(size_t index, size_t size)
 	// 1.最开始不会向Central Cache要太多，可能造成浪费
 	// 2.如果不断有内存需求，batchNum会一直增长，直到上限
 	// 3.size越大，一次向Central Cache要的就越少，size越小，要的就越多
-	size_t batchNum = std::min(SizeClass::NumMoveSize(size), _freeLists[index].MaxSize());
+	size_t batchNum = min(SizeClass::NumMoveSize(size), _freeLists[index].MaxSize());
 	if (batchNum == _freeLists[index].MaxSize())
 		_freeLists[index].MaxSize() += 1;
 
