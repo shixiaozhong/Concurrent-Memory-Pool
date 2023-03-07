@@ -1,17 +1,21 @@
 #pragma once
-#include"Common.h"
 
+#include"Common.h"
 
 class ThreadCache
 {
 private:
-	FreeList _freeLists[NFREE_LISTS]; // 定义空闲链表的数组
+	FreeList _freelists[NFREELISTS];	// 一条长链表
 public:
-	void* Allocate(size_t size);	// 申请内存
-	void Deallocate(void* ptr, size_t size); // 回收内存
-	void* FecthFromCentralCache(size_t index, size_t size); // 从中心缓存获取
+	// 申请内存
+	void* Allocate(size_t size);
+	// 释放内存
+	void Deallocate(void* ptr, size_t size);
+	// 链表过长，回收
+	void ListTooLong(FreeList& list, size_t size);
+	// 向CentralCache申请
+	void* FetchFromCentralCache(size_t index, size_t size);
 };
 
-// TLS thread local storage
-static _declspec(thread) ThreadCache* pTLSThreadCache = nullptr;
-static _declspec(thread) int x = 10;
+// thread local stroage
+static _declspec (thread) ThreadCache* pTLSThreadCache = nullptr;
