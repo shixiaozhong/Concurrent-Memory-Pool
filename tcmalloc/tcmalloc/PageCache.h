@@ -1,5 +1,7 @@
 #pragma once
 #include"Common.h"
+#include"ObjectPool.h"
+
 
 class PageCache
 {
@@ -7,6 +9,8 @@ private:
 	SpanList _spanLists[NPAGES];
 	static PageCache _sInst;
 	std::unordered_map<PAGE_ID, Span*> _idSpanMap;	// 做一个页号到span的映射，便于回收内存放回到对应的span
+
+	ObjectPool<Span> _spanPool;
 private:
 	PageCache() {};
 	PageCache(const PageCache&) = delete;

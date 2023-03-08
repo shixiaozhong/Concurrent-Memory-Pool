@@ -69,7 +69,6 @@ void ThreadCache::Deallocate(void* ptr, size_t size)
 	{
 		ListTooLong(_freelists[index], size);
 	}
-
 }
 
 void ThreadCache::ListTooLong(FreeList& list, size_t size)

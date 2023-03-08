@@ -30,7 +30,7 @@ Span* CentralCache::GetOneSpan(SpanList& list, size_t size)
 
 	Span* span = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size));
 	span->_isUse = true;	// 只要是从pagecache中分过来的span，就代表已经被使用了
-
+	span->_objSize = size;	// 保存小对象的size，用于后续释放空间
 	// 解锁
 	PageCache::GetInstance()->_pageMtx.unlock();
 
@@ -48,13 +48,16 @@ Span* CentralCache::GetOneSpan(SpanList& list, size_t size)
 	span->_freelist = start;
 	start += size;
 	void* tail = span->_freelist;
-	while (start != end)
+	// 尾插
+	while (start < end)
 	{
 		// 前四个字节的地址存储下一个块的地址，形成连接关系
 		NextObj(tail) = start;
 		tail = start;
 		start += size;
 	}
+	// 最后一个要指向空
+	NextObj(tail) = nullptr;
 
 	// 这里要切好span以后，需要将切分好的span接到spanlist中，需要加锁
 	list._mtx.lock();

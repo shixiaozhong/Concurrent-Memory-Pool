@@ -45,6 +45,15 @@ inline static void* SystemAlloc(size_t kpage)
 	return ptr;
 }
 
+// 释放堆中内存
+inline static void SystemFree(void* ptr)
+{
+#ifdef _WIN32
+	VirtualFree(ptr, 0, MEM_RELEASE);
+#else
+	// sbrk, ummap等
+#endif
+}
 
 // 获取前4个或者8个字节的值作为next指针，引用返回
 static void*& NextObj(void* obj)
@@ -129,6 +138,8 @@ struct Span
 	size_t _useCount = 0;	//切好的小块内存，被分配给ThreadCache的计数
 	void* _freelist = nullptr;	// 切好的小块内存的自由链表
 	bool _isUse = false;	// 是否在被使用
+
+	size_t _objSize = 0;	//切好的小对象的大小
 };
 
 // 双向带头循环链表
@@ -268,9 +279,9 @@ public:
 		}
 		else
 		{
-			assert(false);
+			// 超过256KB
+			return _RoundUp(size, 1 << PAGE_SHIFT);
 		}
-		return -1;
 	}
 
 	// 常规写法

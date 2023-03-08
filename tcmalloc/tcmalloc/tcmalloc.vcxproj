@@ -92,6 +92,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -120,6 +121,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -142,10 +144,12 @@
     <ClInclude Include="CentralCache.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="ConcurrentAlloc.h" />
+    <ClInclude Include="ObjectPool.h" />
     <ClInclude Include="PageCache.h" />
     <ClInclude Include="ThreadCache.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Benchmark.cpp" />
     <ClCompile Include="CentralCache.cpp" />
     <ClCompile Include="PageCache.cpp" />
     <ClCompile Include="ThreadCache.cpp" />
