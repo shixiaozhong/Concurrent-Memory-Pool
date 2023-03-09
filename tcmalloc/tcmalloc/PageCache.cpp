@@ -16,7 +16,8 @@ Span* PageCache::NewSpan(size_t k)
 		Span* span = _spanPool.New();	// 使用定长内存池来替换掉new
 		span->_pageId = (PAGE_ID)ptr >> PAGE_SHIFT;
 		span->_n = k;
-		_idSpanMap[span->_pageId] = span;	// 将起始页号和span关联起来
+		//_idSpanMap[span->_pageId] = span;	// 将起始页号和span关联起来
+		_idSpanMap.set(span->_pageId, span);
 		return span;
 	}
 
@@ -28,7 +29,8 @@ Span* PageCache::NewSpan(size_t k)
 		// 建立id与span的映射，方便central cache回收小块内存时，查找对应的span
 		for (PAGE_ID i = 0; i < kSpan->_n; i++)
 		{
-			_idSpanMap[kSpan->_pageId + i] = kSpan;
+			//_idSpanMap[kSpan->_pageId + i] = kSpan;
+			_idSpanMap.set(kSpan->_pageId + i, kSpan);
 		}
 		return kSpan;
 	}
@@ -56,13 +58,15 @@ Span* PageCache::NewSpan(size_t k)
 			_spanLists[nSpan->_n].PushFront(nSpan);
 
 			// 存储nSpan的首尾页号跟nSpan的映射，方便回收内存时，进行合并查找
-			_idSpanMap[nSpan->_pageId] = nSpan;
-			_idSpanMap[nSpan->_pageId + nSpan->_n - 1] = nSpan;
-
+			//_idSpanMap[nSpan->_pageId] = nSpan;
+			_idSpanMap.set(nSpan->_pageId, nSpan);
+			//_idSpanMap[nSpan->_pageId + nSpan->_n - 1] = nSpan;
+			_idSpanMap.set(nSpan->_pageId + nSpan->_n - 1, nSpan);
 			// 建立id与span的映射，方便central cache回收小块内存时，查找对应的span
 			for (PAGE_ID i = 0; i < kSpan->_n; i++)
 			{
-				_idSpanMap[kSpan->_pageId + i] = kSpan;
+				//_idSpanMap[kSpan->_pageId + i] = kSpan;
+				_idSpanMap.set(kSpan->_pageId + i, kSpan);
 			}
 
 			return kSpan;
@@ -88,19 +92,26 @@ Span* PageCache::NewSpan(size_t k)
 Span* PageCache::MapObjectToSpan(void* obj)
 {
 	PAGE_ID id = (PAGE_ID)obj >> PAGE_SHIFT;
-	std::unique_lock<std::mutex> lock(_pageMtx);	// 使用RAII的锁，出作用域自动解锁
-
-	auto ret = _idSpanMap.find(id);
-	if (ret != _idSpanMap.end())
-	{
-		return ret->second;
-	}
-	else
-	{
-		// 理论上来说，一定可以找的到，如果没找到肯定是程序有错误
-		assert(false);
-		return nullptr;
-	}
+	//std::unique_lock<std::mutex> lock(_pageMtx);	// 使用RAII的锁，出作用域自动解锁
+	//auto ret = _idSpanMap.find(id);
+	//if (ret != _idSpanMap.end())
+	//{
+	//	return ret->second;
+	//}
+	//else
+	//{
+	//	// 理论上来说，一定可以找的到，如果没找到肯定是程序有错误
+	//	assert(false);
+	//	return nullptr;
+	//}
+	
+	// 不需要加锁了，红黑树或者哈希表都会不停的在修改结构，基数树不会动结构
+	// 1.只有在这两个函数中会去建立id和span的映射，也就是写
+	// 2.基数树，写之前hui提前开好空间，写数据过程中，不会动结构，
+	// 3.读写是分离的，线程在对一个位置读写时， 线程二不可能对这个位置进行读写
+	Span* ret = (Span*)_idSpanMap.get(id);
+	assert(ret != nullptr);
+	return ret;
 }
 
 void PageCache::ReleaseSpanToPageCache(Span* span)
@@ -121,14 +132,20 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 	while (true)
 	{
 		PAGE_ID prev_id = span->_pageId - 1;
-		auto ret = _idSpanMap.find(prev_id);
-		// 不存在前面的页号
-		if (ret == _idSpanMap.end())
+		//auto ret = _idSpanMap.find(prev_id);
+		//// 不存在前面的页号
+		//if (ret == _idSpanMap.end())
+		//{
+		//	break;
+		//}
+		Span* ret = (Span*)_idSpanMap.get(prev_id);
+		if (ret == nullptr)
 		{
 			break;
 		}
+
 		// 存在但是已经被使用了
-		Span* prev_span = ret->second;
+		Span* prev_span = ret;
 		if (prev_span->_isUse == true)
 		{
 			break;
@@ -152,14 +169,17 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 		// 找到后面span的起始页号
 		PAGE_ID next_id = span->_pageId + span->_n;
 
-		auto ret = _idSpanMap.find(next_id);
+		/*auto ret = _idSpanMap.find(next_id);
 		if (ret == _idSpanMap.end())
 		{
 			break;
-		}
+		}*/
+		Span* ret =  (Span*)_idSpanMap.get(next_id);
+		if (ret == nullptr)
+			break;
 
 		// 存在但是在使用
-		Span* next_span = ret->second;
+		Span* next_span = ret;
 		if (next_span->_isUse == true)
 		{
 			break;
@@ -180,7 +200,9 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 	// 合并完毕后，将span挂到对应的页中
 	_spanLists[span->_n].PushFront(span);
 	span->_isUse = false;	// 标记为未使用
-	_idSpanMap[span->_pageId] = span;
-	_idSpanMap[span->_pageId + span->_n - 1] = span;
 
+	//_idSpanMap[span->_pageId] = span;
+	_idSpanMap.set(span->_pageId, span);
+	//_idSpanMap[span->_pageId + span->_n - 1] = span;
+	_idSpanMap.set(span->_pageId + span->_n - 1, span);
 }

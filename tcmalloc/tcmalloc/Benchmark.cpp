@@ -113,7 +113,7 @@ int main()
 	BenchmarkConcurrentMalloc(n, 4, 10);
 	std::cout << std::endl << std::endl;
 
-	//BenchmarkMalloc(n, 4, 10);
+	BenchmarkMalloc(n, 4, 10);
 	std::cout << "==========================================================" << std::endl;
 
 	return 0;
