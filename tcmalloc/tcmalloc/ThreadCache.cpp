@@ -46,6 +46,7 @@ void* ThreadCache::Allocate(size_t size)
 	size_t index = SizeClass::Index(size);
 	if (!_freelists[index].Empty())
 	{
+		// 自由链表桶不为空，直接弹出一个
 		return _freelists[index].Pop();
 	}
 	else
@@ -64,7 +65,7 @@ void ThreadCache::Deallocate(void* ptr, size_t size)
 	size_t index = SizeClass::Index(size);
 	_freelists[index].Push(ptr);
 
-	// 当链表的长度大于一次批量申请的长度时，就开始还一段地址给central cache
+	// 当链表的长度大于一次批量申请的长度时，就开始还一段给central cache
 	if (_freelists[index].Size() >= _freelists[index].MaxSize())
 	{
 		ListTooLong(_freelists[index], size);

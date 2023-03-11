@@ -6,9 +6,10 @@
 class CentralCache
 {
 private:
-	static CentralCache _sInst;
-	SpanList _spanLists[NFREELISTS];
+	static CentralCache _sInst;	// 单例对象
+	SpanList _spanLists[NFREELISTS];	// central cache下的空闲链表数组
 
+	// 构造和拷贝构造设置为私有，实现单例模式
 	CentralCache() {};
 	CentralCache(const CentralCache&) = delete;
 public:
@@ -24,5 +25,6 @@ public:
 	// 获取一个非空的Span
 	Span* GetOneSpan(SpanList& list, size_t size);
 
+	//将thread cache下的过长的链表返回给central cache
 	void RealaseListToSpans(void* start, size_t size);
 };

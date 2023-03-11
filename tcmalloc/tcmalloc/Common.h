@@ -65,15 +65,15 @@ static void*& NextObj(void* obj)
 class FreeList
 {
 private:
-	void* _freeList = nullptr;
-	size_t _maxSize = 1;
-	size_t _size = 0;
+	void* _freeList = nullptr;	// 自由链表头节点
+	size_t _maxSize = 1;		// 
+	size_t _size = 0;			// 自由链表长度
 public:
 	void Push(void* obj)
 	{
 		assert(obj);
 		// 头插
-		// 取前8个字节作为next指针
+		// 取前4/8个字节作为next指针
 		*(void**)obj = _freeList;
 		_freeList = obj;
 
@@ -169,7 +169,7 @@ public:
 	// 在pos的前面插入一个新的节点
 	void Insert(Span* pos, Span* new_span)
 	{
-		assert(pos);
+		assert(pos);		
 		assert(new_span);
 		// 找到pos的前一个节点
 		Span* prev = pos->_prev;
@@ -196,8 +196,7 @@ public:
 	void Erase(Span* pos)
 	{
 		assert(pos);
-		// 不可以删除哨兵位的头节点
-		assert(_head);
+		assert(_head);	// 不可以删除哨兵位的头节点	
 
 		Span* prev = pos->_prev;
 		Span* next = pos->_next;
@@ -356,7 +355,7 @@ public:
 	{
 		size_t num = NumMoveSize(size);
 		size_t npage = num * size;
-		npage >>= PAGE_SHIFT;
+		npage >>= PAGE_SHIFT;	// 乘以8k
 		// 至少给一页
 		if (npage == 0)
 			npage = 1;

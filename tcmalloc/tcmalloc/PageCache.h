@@ -6,7 +6,7 @@
 class PageCache
 {
 private:
-	SpanList _spanLists[NPAGES];
+	SpanList _spanLists[NPAGES];	// page cache下的spanlist数组
 	static PageCache _sInst;
 
 	// 不适用STL，因为底层使用的还是malloc，需要脱离malloc
@@ -28,6 +28,7 @@ public:
 
 	// 获取从对象到span的映射
 	Span* MapObjectToSpan(void* obj);
+
 	// 获取一个k页的span
 	Span* NewSpan(size_t k);
 

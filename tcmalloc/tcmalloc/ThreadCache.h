@@ -17,5 +17,5 @@ public:
 	void* FetchFromCentralCache(size_t index, size_t size);
 };
 
-// thread local stroage
+// thread local stroage 线程局部存储
 static _declspec (thread) ThreadCache* pTLSThreadCache = nullptr;

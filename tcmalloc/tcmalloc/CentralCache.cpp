@@ -67,7 +67,7 @@ Span* CentralCache::GetOneSpan(SpanList& list, size_t size)
 	return span;
 }
 
-// 从central cache中获取一定数量给thread cache
+// 从central cache中获取一定数量的size大小的块给thread cache
 size_t CentralCache::FetchRangeObj(void*& start, void*& end, size_t batch_num, size_t size)
 {
 	// 算出对应在哪个SpanList中拿
@@ -100,7 +100,7 @@ size_t CentralCache::FetchRangeObj(void*& start, void*& end, size_t batch_num, s
 }
 
 
-// 
+//将thread cache下的过长的链表返回给central cache
 void CentralCache::RealaseListToSpans(void* start, size_t size)
 {
 	size_t index = SizeClass::Index(size);
@@ -115,7 +115,7 @@ void CentralCache::RealaseListToSpans(void* start, size_t size)
 		NextObj(start) = span->_freelist;
 		span->_freelist = start;
 		span->_useCount--;
-
+		// 所有的span都回来了，返回给page cache
 		if (span->_useCount == 0)
 		{
 			// 说明span切分出去的所有小块内存都回来了，所以这个span的内存可以再回收给pagecache，pagecache可以再去做前后页的合并
@@ -131,6 +131,7 @@ void CentralCache::RealaseListToSpans(void* start, size_t size)
 
 			// 加上pagecache的大锁
 			PageCache::GetInstance()->_pageMtx.lock();
+			// 释放空闲的span返回给page cache
 			PageCache::GetInstance()->ReleaseSpanToPageCache(span);
 			PageCache::GetInstance()->_pageMtx.unlock();
 

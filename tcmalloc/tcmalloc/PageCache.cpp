@@ -8,6 +8,7 @@ Span* PageCache::NewSpan(size_t k)
 {
 	assert(k > 0);
 
+	// 申请的页数超过128
 	if (k > NPAGES - 1)
 	{
 		// 大于128页就向堆申请 
@@ -84,11 +85,11 @@ Span* PageCache::NewSpan(size_t k)
 	// 插入到对应的spanlist中
 	_spanLists[bigSpan->_n].PushFront(bigSpan);
 
-	// 递归调用自己
+	// 递归调用自己，重新分配一个span
 	return NewSpan(k);
 }
 
-
+// 查找pageID与span的映射
 Span* PageCache::MapObjectToSpan(void* obj)
 {
 	PAGE_ID id = (PAGE_ID)obj >> PAGE_SHIFT;
@@ -114,12 +115,16 @@ Span* PageCache::MapObjectToSpan(void* obj)
 	return ret;
 }
 
+
+// 将空闲的span返回给page cache
 void PageCache::ReleaseSpanToPageCache(Span* span)
 {
+	// 释放的空间大于128页
 	if (span->_n > NPAGES - 1)
 	{
 		// span的页数量大于128,不是找pagecache要的
 		void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
+		// 使用系统提供的接口释放
 		SystemFree(ptr);
 		//delete span;
 		_spanPool.Delete(span);
