@@ -103,18 +103,17 @@ size_t CentralCache::FetchRangeObj(void*& start, void*& end, size_t batch_num, s
 //将thread cache下的过长的链表返回给central cache
 void CentralCache::RealaseListToSpans(void* start, size_t size)
 {
-	size_t index = SizeClass::Index(size);
+	size_t index = SizeClass::Index(size);	// 获取对应spanlist的桶索引，因为central cache的结构与thread cache相同
 	// 桶锁先加上
 	_spanLists[index]._mtx.lock();
 	// 遍历list
 	while (start)
 	{
 		void* next = NextObj(start);
-
-		Span* span = PageCache::GetInstance()->MapObjectToSpan(start);
-		NextObj(start) = span->_freelist;
+		Span* span = PageCache::GetInstance()->MapObjectToSpan(start);	// 获取内存块对应的span
+		NextObj(start) = span->_freelist;	// 将该内存块头插到对应的span中的自由链表中。
 		span->_freelist = start;
-		span->_useCount--;
+		span->_useCount--;	// span中的计数减少，如果减少到0，表示该span中切分出去的所有内存块都回来了
 		// 所有的span都回来了，返回给page cache
 		if (span->_useCount == 0)
 		{
@@ -125,8 +124,8 @@ void CentralCache::RealaseListToSpans(void* start, size_t size)
 			span->_prev = nullptr;
 
 			// 将span的页归还给page cache
-			// 
-			// 可以先将central cache的桶锁解了，因为下面是操作pagecache，不再设计central cache
+			 
+			// 可以先将central cache的桶锁解了，因为下面是操作pagecache，不再涉及central cache
 			_spanLists[index]._mtx.unlock();
 
 			// 加上pagecache的大锁
@@ -135,9 +134,11 @@ void CentralCache::RealaseListToSpans(void* start, size_t size)
 			PageCache::GetInstance()->ReleaseSpanToPageCache(span);
 			PageCache::GetInstance()->_pageMtx.unlock();
 
+			// 将桶锁加上
 			_spanLists[index]._mtx.lock();
 		}
 		start = next;
 	}
+	// 访问central cache完毕解除桶锁
 	_spanLists[index]._mtx.unlock();
 }

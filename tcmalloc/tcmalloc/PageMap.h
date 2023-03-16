@@ -5,25 +5,27 @@
 template <int BITS>
 class TCMalloc_PageMap1 {
 private:
-	static const int LENGTH = 1 << BITS;
+	static const int LENGTH = 1 << BITS;// 设置映射关系的数目，例如32位下，每页8kb，最多有2^19个页
 	void** array_;
 
 public:
-	typedef uintptr_t Number;
+	typedef uintptr_t Number; // uintptr_t是unsiged int typedef的
 
-	//explicit TCMalloc_PageMap1(void* (*allocator)(size_t)) {
+	// 构造函数
 	explicit TCMalloc_PageMap1() {
-		//array_ = reinterpret_cast<void**>((*allocator)(sizeof(void*) << BITS));
-		size_t size = sizeof(void*) << BITS;
-		size_t alignSize = SizeClass::_RoundUp(size, 1 << PAGE_SHIFT);
-		array_ = (void**)SystemAlloc(alignSize >> PAGE_SHIFT);
-		memset(array_, 0, sizeof(void*) << BITS);
+		size_t size = sizeof(void*) << BITS;		// 需要开辟数组的大小
+		size_t alignSize = SizeClass::_RoundUp(size, 1 << PAGE_SHIFT);	// 按页对齐，一页是8kb
+		array_ = (void**)SystemAlloc(alignSize >> PAGE_SHIFT);	// 向堆申请内存
+		memset(array_, 0, sizeof(void*) << BITS);	// 将数组初始化为0
 	}
 
 	// Return the current value for KEY.  Returns NULL if not yet set,
 	// or if k is out of range.
-	void* get(Number k) const {
-		if ((k >> BITS) > 0) {
+	// 在映射的表中查找
+	void* get(Number k) const 
+	{
+		if ((k >> BITS) > 0) // 不是合法页号，例如32平台下，页号只需要19位来存储，右移19位如果大于0，表示不是合法页号
+		{
 			return NULL;
 		}
 		return array_[k];
@@ -33,7 +35,9 @@ public:
 	// REQUIRES "k" has been ensured before.
 	//
 	// Sets the value 'v' for key 'k'.
-	void set(Number k, void* v) {
+	// 传入页号和span，构建映射关系
+	void set(Number k, void* v)
+	{
 		array_[k] = v;
 	}
 };
@@ -44,67 +48,68 @@ class TCMalloc_PageMap2 {
 private:
 	// Put 32 entries in the root and (2^BITS)/32 entries in each leaf.
 	static const int ROOT_BITS = 5;
-	static const int ROOT_LENGTH = 1 << ROOT_BITS;
+	static const int ROOT_LENGTH = 1 << ROOT_BITS; // 32 
 
-	static const int LEAF_BITS = BITS - ROOT_BITS;
-	static const int LEAF_LENGTH = 1 << LEAF_BITS;
+	static const int LEAF_BITS = BITS - ROOT_BITS;	// 14位
+	static const int LEAF_LENGTH = 1 << LEAF_BITS;	// 2^14
 
-	// Leaf node
+	// root层中每个单位存储的元素类型
 	struct Leaf {
 		void* values[LEAF_LENGTH];
 	};
 
-	Leaf* root_[ROOT_LENGTH];             // Pointers to 32 child nodes
-	void* (*allocator_)(size_t);          // Memory allocator
+	Leaf* root_[ROOT_LENGTH];             // root层的数组
 
 public:
 	typedef uintptr_t Number;
 
-	//explicit TCMalloc_PageMap2(void* (*allocator)(size_t)) {
+	// 构造函数
 	explicit TCMalloc_PageMap2() {
-		//allocator_ = allocator;
-		memset(root_, 0, sizeof(root_));
-
+		memset(root_, 0, sizeof(root_));	// 将root数组置为NULL
 		PreallocateMoreMemory();
 	}
 
-	void* get(Number k) const {
-		const Number i1 = k >> LEAF_BITS;
-		const Number i2 = k & (LEAF_LENGTH - 1);
-		if ((k >> BITS) > 0 || root_[i1] == NULL) {
+	void* get(Number k) const 
+	{
+		const Number i1 = k >> LEAF_BITS;			// 获取对应的root层对应的下标
+		const Number i2 = k & (LEAF_LENGTH - 1);	// 获取对应的第二层的下标
+		//页号不在范围内或者没有建立映射关系
+		if ((k >> BITS) > 0 || root_[i1] == NULL) 
+		{
 			return NULL;
 		}
 		return root_[i1]->values[i2];
 	}
 
-	void set(Number k, void* v) {
-		const Number i1 = k >> LEAF_BITS;
-		const Number i2 = k & (LEAF_LENGTH - 1);
-		ASSERT(i1 < ROOT_LENGTH);
-		root_[i1]->values[i2] = v;
+	void set(Number k, void* v)
+	{
+		const Number i1 = k >> LEAF_BITS;			// 获取对应的root层对应的下标
+		const Number i2 = k & (LEAF_LENGTH - 1);	// 获取对应的第二层的下标
+		assert(i1 < ROOT_LENGTH);	// 断言是否在root的大小之内
+		root_[i1]->values[i2] = v;	// 建立映射关系
 	}
 
 	bool Ensure(Number start, size_t n) {
-		for (Number key = start; key <= start + n - 1;) {
-			const Number i1 = key >> LEAF_BITS;
+		for (Number key = start; key <= start + n - 1;) 
+		{
+			const Number i1 = key >> LEAF_BITS;	// 获取root层对应的下标
 
-			// Check for overflow
+			// 超过了root层的长度
 			if (i1 >= ROOT_LENGTH)
 				return false;
 
 			// Make 2nd level node if necessary
+			// 第一层i1指向的空间未开辟
 			if (root_[i1] == NULL) {
-				//Leaf* leaf = reinterpret_cast<Leaf*>((*allocator_)(sizeof(Leaf)));
-				//if (leaf == NULL) return false;
 				static ObjectPool<Leaf>	leafPool;
-				Leaf* leaf = (Leaf*)leafPool.New();
+				Leaf* leaf = (Leaf*)leafPool.New();	// 使用定长内存池开辟空间
 
-				memset(leaf, 0, sizeof(*leaf));
-				root_[i1] = leaf;
+				memset(leaf, 0, sizeof(*leaf));		// 将leaf置为NULL
+				root_[i1] = leaf;					// 将leaf保存到root中
 			}
 
 			// Advance key past whatever is covered by this leaf node
-			key = ((key >> LEAF_BITS) + 1) << LEAF_BITS;
+			key = ((key >> LEAF_BITS) + 1) << LEAF_BITS;	// 继续向后检查，对应的位++
 		}
 		return true;
 	}

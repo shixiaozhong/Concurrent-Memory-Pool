@@ -143,7 +143,7 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 		//{
 		//	break;
 		//}
-		Span* ret = (Span*)_idSpanMap.get(prev_id);
+		Span* ret = (Span*)_idSpanMap.get(prev_id);// 通过key-value的数据结构来找到前面页对应的span
 		if (ret == nullptr)
 		{
 			break;
@@ -160,12 +160,13 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 		{
 			break;
 		}
-		span->_pageId = prev_span->_pageId;
-		span->_n += prev_span->_n;
-		_spanLists[prev_span->_n].Erase(prev_span);
+		// 进行空闲页的合并
+		span->_pageId = prev_span->_pageId; // 更新pageId
+		span->_n += prev_span->_n;	// 更新大小
+		_spanLists[prev_span->_n].Erase(prev_span);	// 删除前面的被合并的span
 		// 释放掉prev_span
 		//delete prev_span;
-		_spanPool.Delete(prev_span);
+		_spanPool.Delete(prev_span);	// 释放掉前面的span的结构
 	}
 
 	// 向后合并
@@ -179,7 +180,7 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 		{
 			break;
 		}*/
-		Span* ret =  (Span*)_idSpanMap.get(next_id);
+		Span* ret =  (Span*)_idSpanMap.get(next_id);// 通过key-value的数据结构来找到前面页对应的span 
 		if (ret == nullptr)
 			break;
 
@@ -195,19 +196,18 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 		{
 			break;
 		}
-
-		span->_n += next_span->_n;
-		_spanLists[next_span->_n].Erase(next_span);
+		// 进行后页的合并
+		span->_n += next_span->_n;	// 更新页的数量，这里不需要更新页号，因为是合并后面的页
+		_spanLists[next_span->_n].Erase(next_span);	// 删除前面的被合并的span 
 		//delete next_span;
-		_spanPool.Delete(next_span);
+		_spanPool.Delete(next_span); // 释放掉后面的span的结构
 	}
 
-	// 合并完毕后，将span挂到对应的页中
-	_spanLists[span->_n].PushFront(span);
+	_spanLists[span->_n].PushFront(span);	// 合并完毕后，将对应大小的span挂到对应的spanlist中
 	span->_isUse = false;	// 标记为未使用
 
 	//_idSpanMap[span->_pageId] = span;
-	_idSpanMap.set(span->_pageId, span);
+	_idSpanMap.set(span->_pageId, span);	// 更新key-value的结构，建立首页与span的映射
 	//_idSpanMap[span->_pageId + span->_n - 1] = span;
-	_idSpanMap.set(span->_pageId + span->_n - 1, span);
+	_idSpanMap.set(span->_pageId + span->_n - 1, span);	// 更新key-value结构，建立尾页与span的映射
 }

@@ -2,10 +2,6 @@
 #include "Common.h"
 
 // 定长内存池
-//template<size_t N>
-//class ObjectPool
-//{};
-
 template<class T>
 class ObjectPool
 {
@@ -17,6 +13,7 @@ public:
 		// 优先把还回来内存块对象，再次重复利用
 		if (_freeList)
 		{
+			// 头删一块
 			void* next = *((void**)_freeList);
 			obj = (T*)_freeList;
 			_freeList = next;
@@ -26,16 +23,16 @@ public:
 			// 剩余内存不够一个对象大小时，则重新开大块空间
 			if (_remainBytes < sizeof(T))
 			{
-				_remainBytes = 128 * 1024;
+				_remainBytes = 128 * 1024;	// 申请128kb
 				//_memory = (char*)malloc(_remainBytes);
-				_memory = (char*)SystemAlloc(_remainBytes >> 13);
+				_memory = (char*)SystemAlloc(_remainBytes >> 13);// 直接向堆申请
 				if (_memory == nullptr)
 				{
-					throw std::bad_alloc();
+					throw std::bad_alloc();	// 申请失败抛出异常
 				}
 			}
 
-			obj = (T*)_memory;
+			obj = (T*)_memory;	// 从新申请的内存中取出一块
 			size_t objSize = sizeof(T) < sizeof(void*) ? sizeof(void*) : sizeof(T);
 			_memory += objSize;
 			_remainBytes -= objSize;

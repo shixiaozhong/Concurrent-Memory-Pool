@@ -22,7 +22,7 @@ static void* ConcurrentAlloc(size_t size)
 		PageCache::GetInstance()->_pageMtx.unlock();
 
 
-		void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
+		void* ptr = (void*)(span->_pageId << PAGE_SHIFT);	// 页号反推出地址
 		return ptr;
 	}
 	else
